@@ -17,6 +17,7 @@ Log formatters that output terse JSON.
 """
 import json
 import logging
+import traceback
 
 _encoder = json.JSONEncoder(ensure_ascii=False, separators=(",", ":"))
 
@@ -49,6 +50,22 @@ _IGNORED_LOG_RECORD_ATTRIBUTES = {
 }
 
 
+def _extract_exc_info(record: logging.LogRecord) -> dict:
+    exc_info = {}
+
+    exc_type, exc_value, exc_tb = record.exc_info
+
+    if exc_type:
+        exc_info["exc_type"] = f"{exc_type.__name__}"
+        exc_info["exc_value"] = f"{exc_value}"
+
+        frame_summary = traceback.extract_tb(exc_tb, limit=1)[0]
+        exc_info["exc_filename"] = frame_summary.filename
+        exc_info["exc_lineno"] = frame_summary.lineno
+
+    return exc_info
+
+
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         event = {
@@ -66,10 +83,7 @@ class JsonFormatter(logging.Formatter):
                 event[key] = value
 
         if record.exc_info:
-            exc_type, exc_value, _ = record.exc_info
-            if exc_type:
-                event["exc_type"] = f"{exc_type.__name__}"
-                event["exc_value"] = f"{exc_value}"
+            event.update(_extract_exc_info(record))
 
         return _encoder.encode(event)
 

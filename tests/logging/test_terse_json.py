@@ -221,6 +221,8 @@ class TerseJsonTestCase(LoggerCleanupMixin, TestCase):
             "namespace",
             "exc_type",
             "exc_value",
+            "exc_filename",
+            "exc_lineno",
         ]
         self.assertCountEqual(log.keys(), expected_log_keys)
         self.assertEqual(log["log"], "Hello there, wally!")
