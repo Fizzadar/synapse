@@ -795,9 +795,9 @@ space on disk after porting to Postgres.</p>
 <p>Firstly, shut down the currently running synapse server and copy its
 database file (typically <code>homeserver.db</code>) to another location. Once the
 copy is complete, restart synapse. For instance:</p>
-<pre><code class="language-sh">./synctl stop
+<pre><code class="language-sh">synctl stop
 cp homeserver.db homeserver.db.snapshot
-./synctl start
+synctl start
 </code></pre>
 <p>Copy the old config file into a new config file:</p>
 <pre><code class="language-sh">cp homeserver.yaml homeserver-postgres.yaml
@@ -820,10 +820,10 @@ run:</p>
 </code></pre>
 <p>Once that has completed, change the synapse config to point at the
 PostgreSQL database configuration file <code>homeserver-postgres.yaml</code>:</p>
-<pre><code class="language-sh">./synctl stop
+<pre><code class="language-sh">synctl stop
 mv homeserver.yaml homeserver-old-sqlite.yaml
 mv homeserver-postgres.yaml homeserver.yaml
-./synctl start
+synctl start
 </code></pre>
 <p>Synapse should now be running against PostgreSQL.</p>
 <h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
@@ -1374,8 +1374,9 @@ turn_allow_guests: True
 <p>After updating the homeserver configuration, you must restart synapse:</p>
 <ul>
 <li>If you use synctl:
-<pre><code class="language-sh">cd /where/you/run/synapse
-./synctl restart
+<pre><code class="language-sh"># Depending on how Synapse is installed, synctl may already be on
+# your PATH. If not, you may need to activate a virtual environment.
+synctl restart
 </code></pre>
 </li>
 <li>If you use systemd:
@@ -1603,7 +1604,7 @@ pip install --upgrade .
 </li>
 <li>
 <p>Restart Synapse:</p>
-<pre><code class="language-bash">./synctl restart
+<pre><code class="language-bash">synctl restart
 </code></pre>
 </li>
 </ol>
@@ -1637,6 +1638,25 @@ wget https://packages.matrix.org/debian/pool/main/m/matrix-synapse-py3/matrix-sy
 dpkg -i matrix-synapse-py3_1.3.0+stretch1_amd64.deb
 </code></pre>
 </li>
+</ul>
+<h1 id="upgrading-to-v1550"><a class="header" href="#upgrading-to-v1550">Upgrading to v1.55.0</a></h1>
+<h2 id="synctl-script-has-been-moved"><a class="header" href="#synctl-script-has-been-moved"><code>synctl</code> script has been moved</a></h2>
+<p>The <code>synctl</code> script
+<a href="https://github.com/matrix-org/synapse/pull/12140">has been made</a> an
+<a href="https://packaging.python.org/en/latest/specifications/entry-points/">entry point</a>
+and no longer exists at the root of Synapse's source tree. If you wish to use
+<code>synctl</code> to manage your homeserver, you should invoke <code>synctl</code> directly, e.g. 
+<code>synctl start</code> instead of <code>./synctl start</code> or <code>/path/to/synctl start</code>. </p>
+<p>You will need to ensure <code>synctl</code> is on your <code>PATH</code>.</p>
+<ul>
+<li>This is automatically the case when using
+<a href="https://packages.matrix.org/debian/">Debian packages</a> or
+<a href="https://hub.docker.com/r/matrixdotorg/synapse">docker images</a>
+provided by Matrix.org.</li>
+<li>When installing from a wheel, sdist, or PyPI, a <code>synctl</code> executable is added 
+to your Python installation's <code>bin</code>. This should be on your <code>PATH</code>
+automatically, though you might need to activate a virtual environment
+depending on how you installed Synapse.</li>
 </ul>
 <h1 id="upgrading-to-v1540"><a class="header" href="#upgrading-to-v1540">Upgrading to v1.54.0</a></h1>
 <h2 id="legacy-structured-logging-configuration-removal"><a class="header" href="#legacy-structured-logging-configuration-removal">Legacy structured logging configuration removal</a></h2>
@@ -1696,7 +1716,7 @@ as an example). Alternately, modules can also implement <a href="https://matrix-
 has recently been released, which fixes a <a href="https://github.com/twisted/twisted/security/advisories/GHSA-92x2-jw7w-xvvx">security issue</a>
 within the Twisted library. We do not believe Synapse is affected by this vulnerability,
 though we advise server administrators who installed Synapse via pip to upgrade Twisted
-with <code>pip install --upgrade Twisted</code> as a matter of good practice. The Docker image
+with <code>pip install --upgrade Twisted treq</code> as a matter of good practice. The Docker image
 <code>matrixdotorg/synapse</code> and the Debian packages from <code>packages.matrix.org</code> are using the
 updated library.</p>
 <h1 id="upgrading-to-v1510"><a class="header" href="#upgrading-to-v1510">Upgrading to v1.51.0</a></h1>
@@ -3081,7 +3101,7 @@ presence:
 # For example, for room version 1, default_room_version should be set
 # to &quot;1&quot;.
 #
-#default_room_version: &quot;6&quot;
+#default_room_version: &quot;9&quot;
 
 # The GC threshold parameters to pass to `gc.set_threshold`, if defined
 #
@@ -8270,6 +8290,48 @@ it will be included in this state.</p>
 into the room, which means this callback cannot be used to deny persisting the event. To
 deny an incoming event, see <a href="modules/spam_checker_callbacks.html#check_event_for_spam"><code>check_event_for_spam</code></a> instead.</p>
 <p>If multiple modules implement this callback, Synapse runs them all in order.</p>
+<h3 id="on_profile_update"><a class="header" href="#on_profile_update"><code>on_profile_update</code></a></h3>
+<p><em>First introduced in Synapse v1.54.0</em></p>
+<pre><code class="language-python">async def on_profile_update(
+    user_id: str,
+    new_profile: &quot;synapse.module_api.ProfileInfo&quot;,
+    by_admin: bool,
+    deactivation: bool,
+) -&gt; None:
+</code></pre>
+<p>Called after updating a local user's profile. The update can be triggered either by the
+user themselves or a server admin. The update can also be triggered by a user being
+deactivated (in which case their display name is set to an empty string (<code>&quot;&quot;</code>) and the
+avatar URL is set to <code>None</code>). The module is passed the Matrix ID of the user whose profile
+has been updated, their new profile, as well as a <code>by_admin</code> boolean that is <code>True</code> if the
+update was triggered by a server admin (and <code>False</code> otherwise), and a <code>deactivated</code>
+boolean that is <code>True</code> if the update is a result of the user being deactivated.</p>
+<p>Note that the <code>by_admin</code> boolean is also <code>True</code> if the profile change happens as a result
+of the user logging in through Single Sign-On, or if a server admin updates their own
+profile.</p>
+<p>Per-room profile changes do not trigger this callback to be called. Synapse administrators
+wishing this callback to be called on every profile change are encouraged to disable
+per-room profiles globally using the <code>allow_per_room_profiles</code> configuration setting in
+Synapse's configuration file.
+This callback is not called when registering a user, even when setting it through the
+<a href="https://matrix-org.github.io/synapse/latest/modules/password_auth_provider_callbacks.html#get_displayname_for_registration"><code>get_displayname_for_registration</code></a>
+module callback.</p>
+<p>If multiple modules implement this callback, Synapse runs them all in order.</p>
+<h3 id="on_user_deactivation_status_changed"><a class="header" href="#on_user_deactivation_status_changed"><code>on_user_deactivation_status_changed</code></a></h3>
+<p><em>First introduced in Synapse v1.54.0</em></p>
+<pre><code class="language-python">async def on_user_deactivation_status_changed(
+    user_id: str, deactivated: bool, by_admin: bool
+) -&gt; None:
+</code></pre>
+<p>Called after deactivating a local user, or reactivating them through the admin API. The
+deactivation can be triggered either by the user themselves or a server admin. The module
+is passed the Matrix ID of the user whose status is changed, as well as a <code>deactivated</code>
+boolean that is <code>True</code> if the user is being deactivated and <code>False</code> if they're being
+reactivated, and a <code>by_admin</code> boolean that is <code>True</code> if the deactivation was triggered by
+a server admin (and <code>False</code> otherwise). This latter <code>by_admin</code> boolean is always <code>True</code>
+if the user is being reactivated, as this operation can only be performed through the
+admin API.</p>
+<p>If multiple modules implement this callback, Synapse runs them all in order.</p>
 <h2 id="example-1"><a class="header" href="#example-1">Example</a></h2>
 <p>The example below is a module that implements the third-party rules callback
 <code>check_event_allowed</code> to censor incoming messages as dictated by a third-party service.</p>
@@ -8844,8 +8906,11 @@ recommend the use of <code>systemd</code> where available: for information on se
 <a href="synctl_workers.html">Using synctl with Workers</a>.</p>
 <h2 id="available-worker-applications"><a class="header" href="#available-worker-applications">Available worker applications</a></h2>
 <h3 id="synapseappgeneric_worker"><a class="header" href="#synapseappgeneric_worker"><code>synapse.app.generic_worker</code></a></h3>
-<p>This worker can handle API requests matching the following regular
-expressions:</p>
+<p>This worker can handle API requests matching the following regular expressions.
+These endpoints can be routed to any worker. If a worker is set up to handle a
+stream then, for maximum efficiency, additional endpoints should be routed to that
+worker: refer to the <a href="workers.html#stream-writers">stream writers</a> section below for further
+information.</p>
 <pre><code># Sync requests
 ^/_matrix/client/(v2_alpha|r0|v3)/sync$
 ^/_matrix/client/(api/v1|v2_alpha|r0|v3)/events$
@@ -8874,7 +8939,6 @@ expressions:</p>
 ^/_matrix/federation/v1/user/devices/
 ^/_matrix/federation/v1/get_groups_publicised$
 ^/_matrix/key/v2/query
-^/_matrix/federation/unstable/org.matrix.msc2946/spaces/
 ^/_matrix/federation/(v1|unstable/org.matrix.msc2946)/hierarchy/
 
 # Inbound federation transaction request
@@ -8887,21 +8951,24 @@ expressions:</p>
 ^/_matrix/client/(api/v1|r0|v3|unstable)/rooms/.*/context/.*$
 ^/_matrix/client/(api/v1|r0|v3|unstable)/rooms/.*/members$
 ^/_matrix/client/(api/v1|r0|v3|unstable)/rooms/.*/state$
-^/_matrix/client/unstable/org.matrix.msc2946/rooms/.*/spaces$
 ^/_matrix/client/(v1|unstable/org.matrix.msc2946)/rooms/.*/hierarchy$
 ^/_matrix/client/unstable/im.nheko.summary/rooms/.*/summary$
-^/_matrix/client/(api/v1|r0|v3|unstable)/account/3pid$
-^/_matrix/client/(api/v1|r0|v3|unstable)/devices$
-^/_matrix/client/(api/v1|r0|v3|unstable)/keys/query$
-^/_matrix/client/(api/v1|r0|v3|unstable)/keys/changes$
+^/_matrix/client/(r0|v3|unstable)/account/3pid$
+^/_matrix/client/(r0|v3|unstable)/devices$
 ^/_matrix/client/versions$
 ^/_matrix/client/(api/v1|r0|v3|unstable)/voip/turnServer$
-^/_matrix/client/(api/v1|r0|v3|unstable)/joined_groups$
-^/_matrix/client/(api/v1|r0|v3|unstable)/publicised_groups$
-^/_matrix/client/(api/v1|r0|v3|unstable)/publicised_groups/
+^/_matrix/client/(r0|v3|unstable)/joined_groups$
+^/_matrix/client/(r0|v3|unstable)/publicised_groups$
+^/_matrix/client/(r0|v3|unstable)/publicised_groups/
 ^/_matrix/client/(api/v1|r0|v3|unstable)/rooms/.*/event/
 ^/_matrix/client/(api/v1|r0|v3|unstable)/joined_rooms$
 ^/_matrix/client/(api/v1|r0|v3|unstable)/search$
+
+# Encryption requests
+^/_matrix/client/(r0|v3|unstable)/keys/query$
+^/_matrix/client/(r0|v3|unstable)/keys/changes$
+^/_matrix/client/(r0|v3|unstable)/keys/claim$
+^/_matrix/client/(r0|v3|unstable)/room_keys/
 
 # Registration/login requests
 ^/_matrix/client/(api/v1|r0|v3|unstable)/login$
@@ -8915,6 +8982,20 @@ expressions:</p>
 ^/_matrix/client/(api/v1|r0|v3|unstable)/rooms/.*/(join|invite|leave|ban|unban|kick)$
 ^/_matrix/client/(api/v1|r0|v3|unstable)/join/
 ^/_matrix/client/(api/v1|r0|v3|unstable)/profile/
+
+# Device requests
+^/_matrix/client/(r0|v3|unstable)/sendToDevice/
+
+# Account data requests
+^/_matrix/client/(r0|v3|unstable)/.*/tags
+^/_matrix/client/(r0|v3|unstable)/.*/account_data
+
+# Receipts requests
+^/_matrix/client/(r0|v3|unstable)/rooms/.*/receipt
+^/_matrix/client/(r0|v3|unstable)/rooms/.*/read_markers
+
+# Presence requests
+^/_matrix/client/(api/v1|r0|v3|unstable)/presence/
 </code></pre>
 <p>Additionally, the following REST endpoints can be handled for GET requests:</p>
 <pre><code>^/_matrix/federation/v1/groups/
@@ -8980,11 +9061,10 @@ effects of bursts of events from that bridge on events sent by normal users.</p>
 <p>Additionally, there is <em>experimental</em> support for moving writing of specific
 streams (such as events) off of the main process to a particular worker. (This
 is only supported with Redis-based replication.)</p>
-<p>Currently supported streams are <code>events</code> and <code>typing</code>.</p>
 <p>To enable this, the worker must have a HTTP replication listener configured,
-have a <code>worker_name</code> and be listed in the <code>instance_map</code> config. For example to
-move event persistence off to a dedicated worker, the shared configuration would
-include:</p>
+have a <code>worker_name</code> and be listed in the <code>instance_map</code> config. The same worker
+can handle multiple streams. For example, to move event persistence off to a
+dedicated worker, the shared configuration would include:</p>
 <pre><code class="language-yaml">instance_map:
     event_persister1:
         host: localhost
@@ -8993,6 +9073,10 @@ include:</p>
 stream_writers:
     events: event_persister1
 </code></pre>
+<p>Some of the streams have associated endpoints which, for maximum efficiency, should
+be routed to the workers handling that stream. See below for the currently supported
+streams and the endpoints associated with them:</p>
+<h5 id="the-events-stream"><a class="header" href="#the-events-stream">The <code>events</code> stream</a></h5>
 <p>The <code>events</code> stream also experimentally supports having multiple writers, where
 work is sharded between them by room ID. Note that you <em>must</em> restart all worker
 instances when adding or removing event persisters. An example <code>stream_writers</code>
@@ -9001,6 +9085,33 @@ configuration with multiple writers:</p>
     events:
         - event_persister1
         - event_persister2
+</code></pre>
+<h5 id="the-typing-stream"><a class="header" href="#the-typing-stream">The <code>typing</code> stream</a></h5>
+<p>The following endpoints should be routed directly to the workers configured as
+stream writers for the <code>typing</code> stream:</p>
+<pre><code>^/_matrix/client/(api/v1|r0|v3|unstable)/rooms/.*/typing
+</code></pre>
+<h5 id="the-to_device-stream"><a class="header" href="#the-to_device-stream">The <code>to_device</code> stream</a></h5>
+<p>The following endpoints should be routed directly to the workers configured as
+stream writers for the <code>to_device</code> stream:</p>
+<pre><code>^/_matrix/client/(api/v1|r0|v3|unstable)/sendToDevice/
+</code></pre>
+<h5 id="the-account_data-stream"><a class="header" href="#the-account_data-stream">The <code>account_data</code> stream</a></h5>
+<p>The following endpoints should be routed directly to the workers configured as
+stream writers for the <code>account_data</code> stream:</p>
+<pre><code>^/_matrix/client/(api/v1|r0|v3|unstable)/.*/tags
+^/_matrix/client/(api/v1|r0|v3|unstable)/.*/account_data
+</code></pre>
+<h5 id="the-receipts-stream"><a class="header" href="#the-receipts-stream">The <code>receipts</code> stream</a></h5>
+<p>The following endpoints should be routed directly to the workers configured as
+stream writers for the <code>receipts</code> stream:</p>
+<pre><code>^/_matrix/client/(api/v1|r0|v3|unstable)/rooms/.*/receipt
+^/_matrix/client/(api/v1|r0|v3|unstable)/rooms/.*/read_markers
+</code></pre>
+<h5 id="the-presence-stream"><a class="header" href="#the-presence-stream">The <code>presence</code> stream</a></h5>
+<p>The following endpoints should be routed directly to the workers configured as
+stream writers for the <code>presence</code> stream:</p>
+<pre><code>^/_matrix/client/(api/v1|r0|v3|unstable)/presence/
 </code></pre>
 <h4 id="background-tasks"><a class="header" href="#background-tasks">Background tasks</a></h4>
 <p>There is also <em>experimental</em> support for moving background tasks to a separate
@@ -9278,7 +9389,7 @@ server admin. (Note that a server admin is distinct from a room admin.)</p>
 <pre><code class="language-sql">UPDATE users SET admin = 1 WHERE name = '@foo:bar.com';
 </code></pre>
 <p>A new server admin user can also be created using the <code>register_new_matrix_user</code>
-command. This is a script that is located in the <code>scripts/</code> directory, or possibly
+command. This is a script that is distributed as part of synapse. It is possibly
 already on your <code>$PATH</code> depending on how Synapse was installed.</p>
 <p>Finding your user's <code>access_token</code> is client-dependent, but will usually be shown in the client's settings.</p>
 <h2 id="making-an-admin-api-request"><a class="header" href="#making-an-admin-api-request">Making an Admin API request</a></h2>
@@ -11167,7 +11278,8 @@ provider for SSO (Single sign-on). Details in
 section <code>sso</code> and <code>oidc_providers</code>.
 <ul>
 <li><code>auth_provider</code> - string. ID of the external identity provider. Value of <code>idp_id</code>
-in homeserver configuration.</li>
+in the homeserver configuration. Note that no error is raised if the provided
+value is not in the homeserver configuration.</li>
 <li><code>external_id</code> - string, user ID in the external identity provider.</li>
 </ul>
 </li>
@@ -12280,7 +12392,7 @@ parts of the process.</p>
 <p>Note that, prior to Synapse 1.41, any call which returns a coroutine will need to be wrapped in <code>ensureDeferred</code>.</p>
 <p>As a simple example, retrieving an event from the database:</p>
 <pre><code class="language-pycon">&gt;&gt;&gt; from twisted.internet import defer
-&gt;&gt;&gt; defer.ensureDeferred(hs.get_datastore().get_event('$1416420717069yeQaw:matrix.org'))
+&gt;&gt;&gt; defer.ensureDeferred(hs.get_datastores().main.get_event('$1416420717069yeQaw:matrix.org'))
 &lt;Deferred at 0x7ff253fc6998 current result: &lt;FrozenEvent event_id='$1416420717069yeQaw:matrix.org', type='m.room.create', state_key=''&gt;&gt;
 </code></pre>
 <div id="chapter_begin" style="break-before: page; page-break-before: always;"></div><h1 id="how-to-monitor-synapse-metrics-using-prometheus"><a class="header" href="#how-to-monitor-synapse-metrics-using-prometheus">How to monitor Synapse metrics using Prometheus</a></h1>
@@ -13369,7 +13481,7 @@ frobber:
   #distance: 100
 </code></pre>
 <p>Note that the sample configuration is generated from the synapse code
-and is maintained by a script, <code>scripts-dev/generate_sample_config</code>.
+and is maintained by a script, <code>scripts-dev/generate_sample_config.sh</code>.
 Making sure that the output from this script matches the desired format
 is left as an exercise for the reader!</p>
 <div id="chapter_begin" style="break-before: page; page-break-before: always;"></div><h1 id="synapse-release-cycle"><a class="header" href="#synapse-release-cycle">Synapse Release Cycle</a></h1>
@@ -13729,9 +13841,9 @@ same as integers.</p>
 <ul>
 <li>
 <p>Any new boolean column must be added to the <code>BOOLEAN_COLUMNS</code> list in
-<code>scripts/synapse_port_db</code>. This tells the port script to cast the integer
-value from SQLite to a boolean before writing the value to the postgres
-database.</p>
+<code>synapse/_scripts/synapse_port_db.py</code>. This tells the port script to cast
+the integer value from SQLite to a boolean before writing the value to the
+postgres database.</p>
 </li>
 <li>
 <p>Before SQLite 3.23, <code>TRUE</code> and <code>FALSE</code> were not recognised as constants by
@@ -14676,28 +14788,29 @@ to constantly update their platform dependencies to the latest versions.</p>
 <p>Anything that requires modifying the device list <a href="https://github.com/matrix-org/synapse/issues/7721">#7721</a> will take a while to propagate, again taking the client &quot;Offline&quot; until it's complete. This includes signing in and out, editing the public name and verifying e2ee. The main mitigation I recommend is to keep long-running sessions open e.g. by using Firefox SSB &quot;Use this site in App mode&quot; or Chromium PWA &quot;Install Element&quot;.</p>
 <h3 id="recommended-configuration"><a class="header" href="#recommended-configuration">Recommended configuration</a></h3>
 <p>Put the below in a new file at /etc/matrix-synapse/conf.d/sbc.yaml to override the defaults in homeserver.yaml.</p>
-<pre><code># Set to false to disable presence tracking on this homeserver.
+<pre><code># Disable presence tracking, which is currently fairly resource intensive
+# More info: https://github.com/matrix-org/synapse/issues/9478
 use_presence: false
 
-# When this is enabled, the room &quot;complexity&quot; will be checked before a user
-# joins a new remote room. If it is above the complexity limit, the server will
-# disallow joining, or will instantly leave.
+# Set a small complexity limit, preventing users from joining large rooms
+# which may be resource-intensive to remain a part of.
+#
+# Note that this will not prevent users from joining smaller rooms that
+# eventually become complex.
 limit_remote_rooms:
-  # Uncomment to enable room complexity checking.
-  #enabled: true
+  enabled: true
   complexity: 3.0
 
 # Database configuration
 database:
+  # Use postgres for the best performance
   name: psycopg2
   args:
     user: matrix-synapse
-    # Generate a long, secure one with a password manager
+    # Generate a long, secure password using a password manager
     password: hunter2
     database: matrix-synapse
     host: localhost
-    cp_min: 5
-    cp_max: 10
 </code></pre>
 <p>Currently the complexity is measured by <a href="https://github.com/matrix-org/synapse/blob/v1.20.1/synapse/storage/databases/main/events_worker.py#L986">current_state_events / 500</a>. You can find join times and your most complex rooms like this:</p>
 <pre><code>admin@homeserver:~$ zgrep '/client/r0/join/' /var/log/matrix-synapse/homeserver.log* | awk '{print $18, $25}' | sort --human-numeric-sort
