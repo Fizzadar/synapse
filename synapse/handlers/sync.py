@@ -1765,7 +1765,9 @@ class SyncHandler:
                 old_state_ids = await self.get_state_at(room_id, since_token)
                 old_mem_ev_id = old_state_ids.get((EventTypes.Member, user_id), None)
                 old_mem_ev = None
-                if old_mem_ev_id:
+                # It is possible that the old membership event is the same as the
+                # latest change event we are handling, see `self.get_state_at`.
+                if old_mem_ev_id and old_mem_ev_id != events[-1].event_id:
                     old_mem_ev = await self.store.get_event(
                         old_mem_ev_id, allow_none=True
                     )
