@@ -42,7 +42,7 @@ from synapse.replication.slave.storage.push_rule import SlavedPushRuleStore
 from synapse.replication.slave.storage.receipts import SlavedReceiptsStore
 from synapse.replication.slave.storage.registration import SlavedRegistrationStore
 from synapse.server import HomeServer
-from synapse.storage.databases.main.room import RoomWorkerStore
+from synapse.storage.databases.event.room import RoomWorkerStore
 from synapse.types import StateMap
 from synapse.util.logcontext import LoggingContext
 

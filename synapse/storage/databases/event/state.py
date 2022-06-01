@@ -30,8 +30,8 @@ from synapse.storage.database import (
     LoggingTransaction,
     make_in_list_sql_clause,
 )
-from synapse.storage.databases.main.events_worker import EventsWorkerStore
-from synapse.storage.databases.main.roommember import RoomMemberWorkerStore
+from synapse.storage.databases.event.events_worker import EventsWorkerStore
+from synapse.storage.databases.event.roommember import RoomMemberWorkerStore
 from synapse.storage.state import StateFilter
 from synapse.types import JsonDict, JsonMapping, StateMap
 from synapse.util.caches import intern_string

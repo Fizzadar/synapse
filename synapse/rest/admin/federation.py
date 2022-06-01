@@ -20,7 +20,7 @@ from synapse.federation.transport.server import Authenticator
 from synapse.http.servlet import RestServlet, parse_integer, parse_string
 from synapse.http.site import SynapseRequest
 from synapse.rest.admin._base import admin_patterns, assert_requester_is_admin
-from synapse.storage.databases.main.transactions import DestinationSortOrder
+from synapse.storage.databases.event.transactions import DestinationSortOrder
 from synapse.types import JsonDict
 
 if TYPE_CHECKING:

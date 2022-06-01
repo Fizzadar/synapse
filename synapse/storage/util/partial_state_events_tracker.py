@@ -20,7 +20,7 @@ from twisted.internet import defer
 from twisted.internet.defer import Deferred
 
 from synapse.logging.context import PreserveLoggingContext, make_deferred_yieldable
-from synapse.storage.databases.main.events_worker import EventsWorkerStore
+from synapse.storage.databases.event.events_worker import EventsWorkerStore
 from synapse.util import unwrapFirstError
 
 logger = logging.getLogger(__name__)

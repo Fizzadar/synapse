@@ -27,7 +27,7 @@ from synapse.storage.database import (
     LoggingTransaction,
     make_tuple_comparison_clause,
 )
-from synapse.storage.databases.main.events import PersistEventsStore
+from synapse.storage.databases.event.events import PersistEventsStore
 from synapse.storage.types import Cursor
 from synapse.types import JsonDict
 

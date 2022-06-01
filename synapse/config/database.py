@@ -110,7 +110,7 @@ class DatabaseConnectionConfig:
 
         data_stores = db_config.get("data_stores")
         if data_stores is None:
-            data_stores = ["main", "state"]
+            data_stores = ["main", "state", "event"]
 
         self.name = name
         self.config = db_config

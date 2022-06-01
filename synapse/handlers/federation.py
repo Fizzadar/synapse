@@ -53,7 +53,7 @@ from synapse.replication.http.federation import (
     ReplicationCleanRoomRestServlet,
     ReplicationStoreRoomOnOutlierMembershipRestServlet,
 )
-from synapse.storage.databases.main.events_worker import EventRedactBehaviour
+from synapse.storage.databases.event.events_worker import EventRedactBehaviour
 from synapse.storage.state import StateFilter
 from synapse.types import JsonDict, StateMap, get_domain_from_id
 from synapse.util.async_helpers import Linearizer

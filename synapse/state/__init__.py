@@ -46,7 +46,7 @@ from synapse.events import EventBase
 from synapse.events.snapshot import EventContext
 from synapse.logging.context import ContextResourceUsage
 from synapse.state import v1, v2
-from synapse.storage.databases.main.events_worker import EventRedactBehaviour
+from synapse.storage.databases.event.events_worker import EventRedactBehaviour
 from synapse.storage.roommember import ProfileInfo
 from synapse.types import StateMap
 from synapse.util.async_helpers import Linearizer

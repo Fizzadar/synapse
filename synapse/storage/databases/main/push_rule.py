@@ -26,11 +26,6 @@ from synapse.storage.database import (
     LoggingDatabaseConnection,
     LoggingTransaction,
 )
-from synapse.storage.databases.main.appservice import ApplicationServiceWorkerStore
-from synapse.storage.databases.main.events_worker import EventsWorkerStore
-from synapse.storage.databases.main.pusher import PusherWorkerStore
-from synapse.storage.databases.main.receipts import ReceiptsWorkerStore
-from synapse.storage.databases.main.roommember import RoomMemberWorkerStore
 from synapse.storage.engines import PostgresEngine, Sqlite3Engine
 from synapse.storage.push_rule import InconsistentRuleException, RuleNotFoundException
 from synapse.storage.util.id_generators import (
@@ -109,11 +104,6 @@ def _load_rules(
 # The ABCMeta metaclass ensures that it cannot be instantiated without
 # the abstract methods being implemented.
 class PushRulesWorkerStore(
-    ApplicationServiceWorkerStore,
-    ReceiptsWorkerStore,
-    PusherWorkerStore,
-    RoomMemberWorkerStore,
-    EventsWorkerStore,
     SQLBaseStore,
     metaclass=abc.ABCMeta,
 ):

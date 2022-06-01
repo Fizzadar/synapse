@@ -16,13 +16,13 @@ import logging
 from typing import TYPE_CHECKING
 
 from synapse.storage.database import DatabasePool, LoggingDatabaseConnection
-from synapse.storage.databases.main.event_federation import EventFederationWorkerStore
-from synapse.storage.databases.main.event_push_actions import (
+from synapse.storage.databases.event.event_federation import EventFederationWorkerStore
+from synapse.storage.databases.event.event_push_actions import (
     EventPushActionsWorkerStore,
 )
-from synapse.storage.databases.main.events_worker import EventsWorkerStore
+from synapse.storage.databases.event.events_worker import EventsWorkerStore
 from synapse.storage.databases.main.relations import RelationsWorkerStore
-from synapse.storage.databases.main.roommember import RoomMemberWorkerStore
+from synapse.storage.databases.event.roommember import RoomMemberWorkerStore
 from synapse.storage.databases.main.signatures import SignatureWorkerStore
 from synapse.storage.databases.main.state import StateGroupWorkerStore
 from synapse.storage.databases.main.stream import StreamWorkerStore

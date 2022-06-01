@@ -24,9 +24,6 @@ from synapse.storage.database import (
     LoggingDatabaseConnection,
     LoggingTransaction,
 )
-from synapse.storage.databases.main.event_push_actions import (
-    EventPushActionsWorkerStore,
-)
 
 if TYPE_CHECKING:
     from synapse.server import HomeServer
@@ -54,7 +51,7 @@ _excess_state_events_collecter = GaugeBucketCollector(
 )
 
 
-class ServerMetricsStore(EventPushActionsWorkerStore, SQLBaseStore):
+class ServerMetricsStore(SQLBaseStore):
     """Functions to pull various metrics from the DB, for e.g. phone home
     stats and prometheus metrics.
     """

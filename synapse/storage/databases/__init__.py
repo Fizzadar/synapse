@@ -17,7 +17,8 @@ from typing import TYPE_CHECKING, Generic, List, Optional, Type, TypeVar
 
 from synapse.storage._base import SQLBaseStore
 from synapse.storage.database import DatabasePool, make_conn
-from synapse.storage.databases.main.events import PersistEventsStore
+from synapse.storage.databases.event.events import PersistEventsStore
+from synapse.storage.databases.event import EventDataStore
 from synapse.storage.databases.state import StateGroupDataStore
 from synapse.storage.engines import create_engine
 from synapse.storage.prepare_database import prepare_database
@@ -40,12 +41,14 @@ class Databases(Generic[DataStoreT]):
     Attributes:
         databases
         main
+        event
         state
         persist_events
     """
 
     databases: List[DatabasePool]
     main: "DataStore"  # FIXME: #11165: actually an instance of `main_store_class`
+    event: "EventDataStore"
     state: StateGroupDataStore
     persist_events: Optional[PersistEventsStore]
 
@@ -55,6 +58,7 @@ class Databases(Generic[DataStoreT]):
 
         self.databases = []
         main: Optional[DataStoreT] = None
+        event: Optional[DataStoreT] = None
         state: Optional[StateGroupDataStore] = None
         persist_events: Optional[PersistEventsStore] = None
 
@@ -90,7 +94,22 @@ class Databases(Generic[DataStoreT]):
                     if main:
                         raise Exception("'main' data store already configured")
 
-                    main = main_store_class(database, db_conn, hs)
+                    class TemporaryHack(main_store_class, EventDataStore):
+                        pass
+
+                    main = TemporaryHack(database, db_conn, hs)
+
+                if "event" in database_config.databases:
+                    logger.info(
+                        "[database config %r]: Starting 'event' database", db_name
+                    )
+
+                    # Sanity check we don't try and configure the event store on
+                    # multiple databases.
+                    if event:
+                        raise Exception("'event' data store already configured")
+
+                    event = EventDataStore(database, db_conn, hs)
 
                     # If we're on a process that can persist events also
                     # instantiate a `PersistEventsStore`
@@ -128,11 +147,15 @@ class Databases(Generic[DataStoreT]):
         if not main:
             raise Exception("No 'main' database configured")
 
+        if not event:
+            raise Exception("No 'event' database configured")
+
         if not state:
             raise Exception("No 'state' database configured")
 
         # We use local variables here to ensure that the databases do not have
         # optional types.
         self.main = main
+        self.event = event
         self.state = state
         self.persist_events = persist_events

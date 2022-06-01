@@ -33,7 +33,7 @@ from synapse.rest.admin._base import (
     assert_requester_is_admin,
     assert_user_is_admin,
 )
-from synapse.storage.databases.main.room import RoomSortOrder
+from synapse.storage.databases.event.room import RoomSortOrder
 from synapse.types import JsonDict, RoomID, UserID, create_requester
 from synapse.util import json_decoder
 

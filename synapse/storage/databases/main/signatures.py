@@ -17,7 +17,7 @@ from typing import Collection, Dict, List, Tuple
 from unpaddedbase64 import encode_base64
 
 from synapse.crypto.event_signing import compute_event_reference_hash
-from synapse.storage.databases.main.events_worker import (
+from synapse.storage.databases.event.events_worker import (
     EventRedactBehaviour,
     EventsWorkerStore,
 )

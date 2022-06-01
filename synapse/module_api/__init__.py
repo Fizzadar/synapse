@@ -108,7 +108,7 @@ from synapse.storage.background_updates import (
     ON_UPDATE_CALLBACK,
 )
 from synapse.storage.database import DatabasePool, LoggingTransaction
-from synapse.storage.databases.main.roommember import ProfileInfo
+from synapse.storage.databases.event.roommember import ProfileInfo
 from synapse.storage.state import StateFilter
 from synapse.types import (
     DomainSpecificString,

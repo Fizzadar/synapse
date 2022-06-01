@@ -59,7 +59,7 @@ from synapse.storage.databases.main.client_ips import ClientIpBackgroundUpdateSt
 from synapse.storage.databases.main.deviceinbox import DeviceInboxBackgroundUpdateStore
 from synapse.storage.databases.main.devices import DeviceBackgroundUpdateStore
 from synapse.storage.databases.main.end_to_end_keys import EndToEndKeyBackgroundStore
-from synapse.storage.databases.main.events_bg_updates import (
+from synapse.storage.databases.event.events_bg_updates import (
     EventsBackgroundUpdatesStore,
 )
 from synapse.storage.databases.main.group_server import GroupServerWorkerStore
@@ -72,8 +72,8 @@ from synapse.storage.databases.main.registration import (
     RegistrationBackgroundUpdateStore,
     find_max_generated_user_id_localpart,
 )
-from synapse.storage.databases.main.room import RoomBackgroundUpdateStore
-from synapse.storage.databases.main.roommember import RoomMemberBackgroundUpdateStore
+from synapse.storage.databases.event.room import RoomBackgroundUpdateStore
+from synapse.storage.databases.event.roommember import RoomMemberBackgroundUpdateStore
 from synapse.storage.databases.main.search import SearchBackgroundUpdateStore
 from synapse.storage.databases.main.state import MainStateBackgroundUpdateStore
 from synapse.storage.databases.main.stats import StatsStore

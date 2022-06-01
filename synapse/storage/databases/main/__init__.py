@@ -31,19 +31,13 @@ from synapse.types import JsonDict, get_domain_from_id
 from synapse.util.caches.stream_change_cache import StreamChangeCache
 
 from .account_data import AccountDataStore
-from .appservice import ApplicationServiceStore, ApplicationServiceTransactionStore
 from .cache import CacheInvalidationWorkerStore
-from .censor_events import CensorEventsStore
 from .client_ips import ClientIpWorkerStore
 from .deviceinbox import DeviceInboxStore
 from .devices import DeviceStore
 from .directory import DirectoryStore
 from .e2e_room_keys import EndToEndRoomKeyStore
 from .end_to_end_keys import EndToEndKeyStore
-from .event_federation import EventFederationStore
-from .event_push_actions import EventPushActionsStore
-from .events_bg_updates import EventsBackgroundUpdatesStore
-from .events_forward_extremities import EventForwardExtremitiesStore
 from .filtering import FilteringStore
 from .group_server import GroupServerStore
 from .keys import KeyStore
@@ -54,24 +48,13 @@ from .monthly_active_users import MonthlyActiveUsersWorkerStore
 from .openid import OpenIdStore
 from .presence import PresenceStore
 from .profile import ProfileStore
-from .purge_events import PurgeEventsStore
 from .push_rule import PushRuleStore
 from .pusher import PusherStore
-from .receipts import ReceiptsStore
 from .registration import RegistrationStore
-from .rejections import RejectionsStore
-from .relations import RelationsStore
-from .room import RoomStore
-from .room_batch import RoomBatchStore
-from .roommember import RoomMemberStore
-from .search import SearchStore
 from .session import SessionStore
 from .signatures import SignatureStore
-from .state import StateStore
 from .stats import StatsStore
-from .stream import StreamWorkerStore
 from .tags import TagsStore
-from .transactions import TransactionWorkerStore
 from .ui_auth import UIAuthStore
 from .user_directory import UserDirectoryStore
 from .user_erasure_store import UserErasureStore
@@ -83,35 +66,20 @@ logger = logging.getLogger(__name__)
 
 
 class DataStore(
-    EventsBackgroundUpdatesStore,
-    RoomMemberStore,
-    RoomStore,
-    RoomBatchStore,
     RegistrationStore,
-    StreamWorkerStore,
     ProfileStore,
     PresenceStore,
-    TransactionWorkerStore,
     DirectoryStore,
     KeyStore,
-    StateStore,
     SignatureStore,
-    ApplicationServiceStore,
-    PurgeEventsStore,
-    EventFederationStore,
     MediaRepositoryStore,
-    RejectionsStore,
     FilteringStore,
     PusherStore,
     PushRuleStore,
-    ApplicationServiceTransactionStore,
-    ReceiptsStore,
     EndToEndKeyStore,
     EndToEndRoomKeyStore,
-    SearchStore,
     TagsStore,
     AccountDataStore,
-    EventPushActionsStore,
     OpenIdStore,
     ClientIpWorkerStore,
     DeviceStore,
@@ -121,10 +89,7 @@ class DataStore(
     UserErasureStore,
     MonthlyActiveUsersWorkerStore,
     StatsStore,
-    RelationsStore,
-    CensorEventsStore,
     UIAuthStore,
-    EventForwardExtremitiesStore,
     CacheInvalidationWorkerStore,
     ServerMetricsStore,
     LockStore,
@@ -210,9 +175,6 @@ class DataStore(
             min_group_updates_id,
             prefilled_cache=_group_updates_prefill,
         )
-
-        self._stream_order_on_start = self.get_room_max_stream_ordering()
-        self._min_stream_order_on_start = self.get_room_min_stream_ordering()
 
     def get_device_stream_token(self) -> int:
         return self._device_list_id_gen.get_current_token()

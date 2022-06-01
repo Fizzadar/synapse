@@ -44,8 +44,8 @@ from synapse.storage.database import (
     LoggingDatabaseConnection,
     LoggingTransaction,
 )
-from synapse.storage.databases.main.events_worker import EventCacheEntry
-from synapse.storage.databases.main.search import SearchEntry
+from synapse.storage.databases.event.events_worker import EventCacheEntry
+from synapse.storage.databases.event.search import SearchEntry
 from synapse.storage.engines.postgres import PostgresEngine
 from synapse.storage.util.id_generators import AbstractStreamIdGenerator
 from synapse.storage.util.sequence import SequenceGenerator

@@ -22,7 +22,7 @@ from synapse.metrics.background_process_metrics import run_as_background_process
 from synapse.push import Pusher, PusherConfig, PusherConfigException, ThrottleParams
 from synapse.push.mailer import Mailer
 from synapse.push.push_types import EmailReason
-from synapse.storage.databases.main.event_push_actions import EmailPushAction
+from synapse.storage.databases.event.event_push_actions import EmailPushAction
 from synapse.util.threepids import validate_email
 
 if TYPE_CHECKING:

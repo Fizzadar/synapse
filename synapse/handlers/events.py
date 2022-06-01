@@ -21,7 +21,7 @@ from synapse.api.errors import AuthError, SynapseError
 from synapse.events import EventBase
 from synapse.events.utils import SerializeEventConfig
 from synapse.handlers.presence import format_user_presence_state
-from synapse.storage.databases.main.events_worker import EventRedactBehaviour
+from synapse.storage.databases.event.events_worker import EventRedactBehaviour
 from synapse.streams.config import PaginationConfig
 from synapse.types import JsonDict, UserID
 from synapse.visibility import filter_events_for_client

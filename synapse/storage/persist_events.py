@@ -47,8 +47,8 @@ from synapse.logging import opentracing
 from synapse.logging.context import PreserveLoggingContext, make_deferred_yieldable
 from synapse.metrics.background_process_metrics import run_as_background_process
 from synapse.storage.databases import Databases
-from synapse.storage.databases.main.events import DeltaState
-from synapse.storage.databases.main.events_worker import EventRedactBehaviour
+from synapse.storage.databases.event.events import DeltaState
+from synapse.storage.databases.event.events_worker import EventRedactBehaviour
 from synapse.types import (
     PersistedEventPosition,
     RoomStreamToken,

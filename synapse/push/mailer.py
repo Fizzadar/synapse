@@ -36,7 +36,7 @@ from synapse.push.push_types import (
     RoomVars,
     TemplateVars,
 )
-from synapse.storage.databases.main.event_push_actions import EmailPushAction
+from synapse.storage.databases.event.event_push_actions import EmailPushAction
 from synapse.storage.state import StateFilter
 from synapse.types import StateMap, UserID
 from synapse.util.async_helpers import concurrently_execute

@@ -24,7 +24,7 @@ from synapse.storage.database import (
     LoggingTransaction,
 )
 from synapse.storage.databases.main.cache import CacheInvalidationWorkerStore
-from synapse.storage.databases.main.events_worker import EventsWorkerStore
+from synapse.storage.databases.event.events_worker import EventsWorkerStore
 from synapse.util import json_encoder
 
 if TYPE_CHECKING:
