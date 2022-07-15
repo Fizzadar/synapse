@@ -431,7 +431,7 @@ class PresenceStore(PresenceBackgroundUpdateStore, CacheInvalidationWorkerStore)
         self._presence_on_startup = []
         return active_on_startup
 
-    def process_replication_rows(
+    async def process_replication_rows(
         self,
         stream_name: str,
         instance_name: str,
@@ -442,5 +442,7 @@ class PresenceStore(PresenceBackgroundUpdateStore, CacheInvalidationWorkerStore)
             self._presence_id_gen.advance(instance_name, token)
             for row in rows:
                 self.presence_stream_cache.entity_has_changed(row.user_id, token)
-                self._get_presence_for_user.invalidate((row.user_id,))
-        return super().process_replication_rows(stream_name, instance_name, token, rows)
+                await self._get_presence_for_user.invalidate((row.user_id,))
+        return await super().process_replication_rows(
+            stream_name, instance_name, token, rows
+        )

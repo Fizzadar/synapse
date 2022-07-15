@@ -63,7 +63,6 @@ jobs:
 
   trial:
     if: ${{ !cancelled() && !failure() }} # Allow previous steps to be skipped, but not fail
-    needs: linting-done
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -127,7 +126,6 @@ jobs:
   trial-olddeps:
     # Note: sqlite only; no postgres
     if: ${{ !cancelled() && !failure() }} # Allow previous steps to be skipped, but not fail
-    needs: linting-done
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -155,7 +153,6 @@ jobs:
     # Very slow; only run if the branch name includes 'pypy'
     # Note: sqlite only; no postgres. Completely untested since poetry move.
     if: ${{ contains(github.ref, 'pypy') && !failure() && !cancelled() }}
-    needs: linting-done
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -186,7 +183,6 @@ jobs:
 
   sytest:
     if: ${{ !failure() && !cancelled() }}
-    needs: linting-done
     runs-on: ubuntu-latest
     container:
       image: matrixdotorg/sytest-synapse:${{ matrix.sytest-tag }}
@@ -277,7 +273,6 @@ jobs:
 
   portdb:
     if: ${{ !failure() && !cancelled() }} # Allow previous steps to be skipped, but not fail
-    needs: linting-done
     runs-on: ubuntu-latest
     env:
       TOP: ${{ github.workspace }}
@@ -315,7 +310,6 @@ jobs:
 
   complement:
     if: "${{ !failure() && !cancelled() }}"
-    needs: linting-done
     runs-on: ubuntu-latest
 
     strategy:
@@ -349,7 +343,6 @@ jobs:
   # See https://github.com/matrix-org/synapse/issues/13161
   complement-workers:
     if: "${{ !failure() && !cancelled() }}"
-    needs: linting-done
     runs-on: ubuntu-latest
 
     steps:

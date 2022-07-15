@@ -80,8 +80,10 @@ class CleanupExtremBackgroundUpdateStoreTestCase(HomeserverTestCase):
             )
         )
 
-        self.hs.get_datastores().main.get_latest_event_ids_in_room.invalidate(
-            (room_id,)
+        self.get_success(
+            self.hs.get_datastores().main.get_latest_event_ids_in_room.invalidate(
+                (room_id,)
+            )
         )
 
     def test_soft_failed_extremities_handled_correctly(self):

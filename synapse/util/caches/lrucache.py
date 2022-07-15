@@ -16,6 +16,7 @@ import logging
 import math
 import threading
 import weakref
+from collections import defaultdict
 from enum import Enum
 from functools import wraps
 from typing import (
@@ -43,6 +44,7 @@ from synapse.config import cache as cache_config
 from synapse.metrics.background_process_metrics import wrap_as_background_process
 from synapse.metrics.jemalloc import get_jemalloc_stats
 from synapse.util import Clock, caches
+from synapse.util.async_helpers import maybe_awaitable
 from synapse.util.caches import CacheMetric, EvictionReason, register_cache
 from synapse.util.caches.treecache import TreeCache, iterate_tree_cache_entry
 from synapse.util.linked_list import ListNode
@@ -740,31 +742,78 @@ class AsyncLruCache(Generic[KT, VT]):
     utilize external cache systems that require await behaviour to be created.
     """
 
-    def __init__(self, *args, **kwargs):  # type: ignore
-        self._lru_cache: LruCache[KT, VT] = LruCache(*args, **kwargs)
+    def __init__(self, cache_name: str, *args, **kwargs):  # type: ignore
+        self.name = cache_name
+        self._lru_cache: LruCache[KT, VT] = LruCache(
+            cache_name=cache_name, *args, **kwargs
+        )
+        self.key_to_callbacks = defaultdict(list)
 
     async def get(
-        self, key: KT, default: Optional[T] = None, update_metrics: bool = True
+        self,
+        key: KT,
+        default: Optional[T] = None,
+        callbacks: Collection[Callable[[], None]] = (),
+        update_metrics: bool = True,
     ) -> Optional[VT]:
-        return self._lru_cache.get(key, update_metrics=update_metrics)
+        self.key_to_callbacks[key].extend(callbacks)
+        return self._lru_cache.get(key, default=default, update_metrics=update_metrics)
 
-    async def set(self, key: KT, value: VT) -> None:
+    async def get_immediate(
+        self,
+        key: KT,
+        default: Optional[T] = None,
+        callbacks: Collection[Callable[[], None]] = (),
+        update_metrics: bool = True,
+    ) -> Optional[VT]:
+        self.key_to_callbacks[key].extend(callbacks)
+        return self._lru_cache.get(key, default=default, update_metrics=update_metrics)
+
+    async def set(
+        self,
+        key: KT,
+        value: VT,
+        callbacks: Collection[Callable[[], None]] = (),
+    ) -> None:
+        default = object()
+        current_value = await self.get(key, default=default)
+        if current_value is not default and current_value != value:
+            for callback in self.key_to_callbacks.pop(key, []):
+                await maybe_awaitable(callback())
+        self.key_to_callbacks[key] = list(callbacks)
         self._lru_cache.set(key, value)
 
     async def invalidate(self, key: KT) -> None:
-        # This method should invalidate any external cache and then invalidate the LruCache.
+        for callback in self.key_to_callbacks.pop(key, []):
+            await maybe_awaitable(callback())
         return self._lru_cache.invalidate(key)
 
-    def invalidate_local(self, key: KT) -> None:
+    async def invalidate_local(self, key: KT) -> None:
         """Remove an entry from the local cache
 
         This variant of `invalidate` is useful if we know that the external
         cache has already been invalidated.
         """
+        for callback in self.key_to_callbacks.pop(key, []):
+            await maybe_awaitable(callback())
         return self._lru_cache.invalidate(key)
+
+    async def invalidate_all(self) -> None:
+        for callbacks in self.key_to_callbacks.values():
+            for cb in callbacks:
+                await maybe_awaitable(cb())
+        self.key_to_callbacks = defaultdict(list)
+        return self._lru_cache.clear()
+
+    async def prefill(self, *args, **kwargs) -> None:
+        return self._lru_cache.set(*args, **kwargs)
 
     async def contains(self, key: KT) -> bool:
         return self._lru_cache.contains(key)
 
     async def clear(self) -> None:
+        for callbacks in self.key_to_callbacks.values():
+            for cb in callbacks:
+                await maybe_awaitable(cb())
+        self.key_to_callbacks = defaultdict(list)
         self._lru_cache.clear()

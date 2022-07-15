@@ -144,7 +144,9 @@ class ReplicationDataHandler:
             token: stream token for this batch of rows
             rows: a list of Stream.ROW_TYPE objects as returned by Stream.parse_row.
         """
-        self.store.process_replication_rows(stream_name, instance_name, token, rows)
+        await self.store.process_replication_rows(
+            stream_name, instance_name, token, rows
+        )
 
         if self.send_handler:
             await self.send_handler.process_replication_rows(stream_name, token, rows)

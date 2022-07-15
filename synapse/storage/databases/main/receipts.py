@@ -577,19 +577,21 @@ class ReceiptsWorkerStore(SQLBaseStore):
             "get_all_updated_receipts", get_all_updated_receipts_txn
         )
 
-    def invalidate_caches_for_receipt(
+    async def invalidate_caches_for_receipt(
         self, room_id: str, receipt_type: str, user_id: str
     ) -> None:
-        self._get_receipts_for_user_with_orderings.invalidate((user_id, receipt_type))
-        self._get_linearized_receipts_for_room.invalidate((room_id,))
+        await self._get_receipts_for_user_with_orderings.invalidate(
+            (user_id, receipt_type)
+        )
+        await self._get_linearized_receipts_for_room.invalidate((room_id,))
 
         # We use this method to invalidate so that we don't end up with circular
         # dependencies between the receipts and push action stores.
-        self._attempt_to_invalidate_cache(
+        await self._attempt_to_invalidate_cache(
             "get_unread_event_push_actions_by_room_for_user", (room_id,)
         )
 
-    def process_replication_rows(
+    async def process_replication_rows(
         self,
         stream_name: str,
         instance_name: str,
@@ -599,12 +601,14 @@ class ReceiptsWorkerStore(SQLBaseStore):
         if stream_name == ReceiptsStream.NAME:
             self._receipts_id_gen.advance(instance_name, token)
             for row in rows:
-                self.invalidate_caches_for_receipt(
+                await self.invalidate_caches_for_receipt(
                     row.room_id, row.receipt_type, row.user_id
                 )
                 self._receipts_stream_cache.entity_has_changed(row.room_id, token)
 
-        return super().process_replication_rows(stream_name, instance_name, token, rows)
+        return await super().process_replication_rows(
+            stream_name, instance_name, token, rows
+        )
 
     def _insert_linearized_receipt_txn(
         self,

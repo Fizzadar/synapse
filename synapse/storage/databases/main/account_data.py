@@ -414,7 +414,7 @@ class AccountDataWorkerStore(PushRulesWorkerStore, CacheInvalidationWorkerStore)
             )
         )
 
-    def process_replication_rows(
+    async def process_replication_rows(
         self,
         stream_name: str,
         instance_name: str,
@@ -427,17 +427,19 @@ class AccountDataWorkerStore(PushRulesWorkerStore, CacheInvalidationWorkerStore)
             self._account_data_id_gen.advance(instance_name, token)
             for row in rows:
                 if not row.room_id:
-                    self.get_global_account_data_by_type_for_user.invalidate(
+                    await self.get_global_account_data_by_type_for_user.invalidate(
                         (row.user_id, row.data_type)
                     )
-                self.get_account_data_for_user.invalidate((row.user_id,))
-                self.get_account_data_for_room.invalidate((row.user_id, row.room_id))
-                self.get_account_data_for_room_and_type.invalidate(
+                await self.get_account_data_for_user.invalidate((row.user_id,))
+                await self.get_account_data_for_room.invalidate(
+                    (row.user_id, row.room_id)
+                )
+                await self.get_account_data_for_room_and_type.invalidate(
                     (row.user_id, row.room_id, row.data_type)
                 )
                 self._account_data_stream_cache.entity_has_changed(row.user_id, token)
 
-        super().process_replication_rows(stream_name, instance_name, token, rows)
+        await super().process_replication_rows(stream_name, instance_name, token, rows)
 
     async def add_account_data_to_room(
         self, user_id: str, room_id: str, account_data_type: str, content: JsonDict
@@ -475,9 +477,9 @@ class AccountDataWorkerStore(PushRulesWorkerStore, CacheInvalidationWorkerStore)
             )
 
             self._account_data_stream_cache.entity_has_changed(user_id, next_id)
-            self.get_account_data_for_user.invalidate((user_id,))
-            self.get_account_data_for_room.invalidate((user_id, room_id))
-            self.get_account_data_for_room_and_type.prefill(
+            await self.get_account_data_for_user.invalidate((user_id,))
+            await self.get_account_data_for_room.invalidate((user_id, room_id))
+            await self.get_account_data_for_room_and_type.prefill(
                 (user_id, room_id, account_data_type), content
             )
 
@@ -510,8 +512,8 @@ class AccountDataWorkerStore(PushRulesWorkerStore, CacheInvalidationWorkerStore)
             )
 
             self._account_data_stream_cache.entity_has_changed(user_id, next_id)
-            self.get_account_data_for_user.invalidate((user_id,))
-            self.get_global_account_data_by_type_for_user.invalidate(
+            await self.get_account_data_for_user.invalidate((user_id,))
+            await self.get_global_account_data_by_type_for_user.invalidate(
                 (user_id, account_data_type)
             )
 

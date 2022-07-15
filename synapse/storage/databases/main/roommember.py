@@ -823,8 +823,10 @@ class RoomMemberWorkerStore(EventsWorkerStore):
             # If we do then we can reuse that result and simply update it with
             # any membership changes in `delta_ids`
             if context.prev_group and context.delta_ids:
-                prev_res = self._get_joined_users_from_context.cache.get_immediate(
-                    (room_id, context.prev_group), None
+                prev_res = (
+                    await self._get_joined_users_from_context.cache.get_immediate(
+                        (room_id, context.prev_group), None
+                    )
                 )
                 if prev_res and isinstance(prev_res, dict):
                     users_in_room = dict(prev_res)
@@ -967,7 +969,7 @@ class RoomMemberWorkerStore(EventsWorkerStore):
 
         # First we check if we already have `get_users_in_room` in the cache, as
         # we can just calculate result from that
-        users = self.get_users_in_room.cache.get_immediate(
+        users = await self.get_users_in_room.cache.get_immediate(
             (room_id,), None, update_metrics=False
         )
         if users is not None:
