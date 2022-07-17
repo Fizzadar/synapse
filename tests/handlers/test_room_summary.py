@@ -675,7 +675,9 @@ class SpaceSummaryTestCase(unittest.HomeserverTestCase):
         )
         # Invalidate method so that it returns the currently updated version
         # instead of the cached version.
-        self.hs.get_datastores().main.get_room_version_id.invalidate((self.room,))
+        self.get_success(
+            self.hs.get_datastores().main.get_room_version_id.invalidate((self.room,))
+        )
 
         # The result should have only the space, along with a link from space -> room.
         expected = [(self.space, [self.room])]

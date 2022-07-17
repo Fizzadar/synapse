@@ -123,6 +123,7 @@ class KeyStore(SQLBaseStore):
             # param, which is itself the 2-tuple (server_name, key_id).
             invalidations.append((server_name, key_id))
 
+        print("GOT", invalidations)
         await self.db_pool.simple_upsert_many(
             table="server_signature_keys",
             key_names=("server_name", "key_id"),
@@ -139,7 +140,7 @@ class KeyStore(SQLBaseStore):
 
         invalidate = self._get_server_verify_key.invalidate
         for i in invalidations:
-            invalidate((i,))
+            await invalidate((i,))
 
     async def store_server_keys_json(
         self,

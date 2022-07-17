@@ -184,7 +184,7 @@ class ServerNoticesManager:
         )
         room_id = info["room_id"]
 
-        self.maybe_get_notice_room_for_user.invalidate((user_id,))
+        await self.maybe_get_notice_room_for_user.invalidate((user_id,))
 
         max_id = await self._account_data_handler.add_tag_to_room(
             user_id, room_id, SERVER_NOTICE_ROOM_TAG, {}

@@ -47,7 +47,7 @@ class SQLBaseStore(metaclass=ABCMeta):
         self.database_engine = database.engine
         self.db_pool = database
 
-    def process_replication_rows(
+    async def process_replication_rows(
         self,
         stream_name: str,
         instance_name: str,
@@ -56,7 +56,7 @@ class SQLBaseStore(metaclass=ABCMeta):
     ) -> None:
         pass
 
-    def _invalidate_state_caches(
+    async def _invalidate_state_caches(
         self, room_id: str, members_changed: Collection[str]
     ) -> None:
         """Invalidates caches that are based on the current state, but does
@@ -68,28 +68,34 @@ class SQLBaseStore(metaclass=ABCMeta):
         """
         # If there were any membership changes, purge the appropriate caches.
         for host in {get_domain_from_id(u) for u in members_changed}:
-            self._attempt_to_invalidate_cache("is_host_joined", (room_id, host))
+            await self._attempt_to_invalidate_cache("is_host_joined", (room_id, host))
         if members_changed:
-            self._attempt_to_invalidate_cache("get_users_in_room", (room_id,))
-            self._attempt_to_invalidate_cache("get_current_hosts_in_room", (room_id,))
-            self._attempt_to_invalidate_cache(
+            await self._attempt_to_invalidate_cache("get_users_in_room", (room_id,))
+            await self._attempt_to_invalidate_cache(
+                "get_current_hosts_in_room", (room_id,)
+            )
+            await self._attempt_to_invalidate_cache(
                 "get_users_in_room_with_profiles", (room_id,)
             )
-            self._attempt_to_invalidate_cache(
+            await self._attempt_to_invalidate_cache(
                 "get_number_joined_users_in_room", (room_id,)
             )
-            self._attempt_to_invalidate_cache("get_local_users_in_room", (room_id,))
+            await self._attempt_to_invalidate_cache(
+                "get_local_users_in_room", (room_id,)
+            )
 
         for user_id in members_changed:
-            self._attempt_to_invalidate_cache(
+            await self._attempt_to_invalidate_cache(
                 "get_user_in_room_with_profile", (room_id, user_id)
             )
 
         # Purge other caches based on room state.
-        self._attempt_to_invalidate_cache("get_room_summary", (room_id,))
-        self._attempt_to_invalidate_cache("get_partial_current_state_ids", (room_id,))
+        await self._attempt_to_invalidate_cache("get_room_summary", (room_id,))
+        await self._attempt_to_invalidate_cache(
+            "get_partial_current_state_ids", (room_id,)
+        )
 
-    def _attempt_to_invalidate_cache(
+    async def _attempt_to_invalidate_cache(
         self, cache_name: str, key: Optional[Collection[Any]]
     ) -> None:
         """Attempts to invalidate the cache of the given name, ignoring if the
@@ -110,9 +116,9 @@ class SQLBaseStore(metaclass=ABCMeta):
             return
 
         if key is None:
-            cache.invalidate_all()
+            await cache.invalidate_all()
         else:
-            cache.invalidate(tuple(key))
+            await cache.invalidate(tuple(key))
 
 
 def db_to_json(db_content: Union[memoryview, bytes, bytearray, str]) -> Any:

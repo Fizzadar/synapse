@@ -238,7 +238,7 @@ class PersistEventsStore:
                 event_counter.labels(event.type, origin_type, origin_entity).inc()
 
             for room_id, latest_event_ids in new_forward_extremities.items():
-                self.store.get_latest_event_ids_in_room.prefill(
+                await self.store.get_latest_event_ids_in_room.prefill(
                     (room_id,), list(latest_event_ids)
                 )
 

@@ -222,7 +222,7 @@ class TagsWorkerStore(AccountDataWorkerStore):
         async with self._account_data_id_gen.get_next() as next_id:
             await self.db_pool.runInteraction("add_tag", add_tag_txn, next_id)
 
-        self.get_tags_for_user.invalidate((user_id,))
+        await self.get_tags_for_user.invalidate((user_id,))
 
         return self._account_data_id_gen.get_current_token()
 
@@ -246,7 +246,7 @@ class TagsWorkerStore(AccountDataWorkerStore):
         async with self._account_data_id_gen.get_next() as next_id:
             await self.db_pool.runInteraction("remove_tag", remove_tag_txn, next_id)
 
-        self.get_tags_for_user.invalidate((user_id,))
+        await self.get_tags_for_user.invalidate((user_id,))
 
         return self._account_data_id_gen.get_current_token()
 
@@ -292,7 +292,7 @@ class TagsWorkerStore(AccountDataWorkerStore):
                 # than the id that the client has.
                 pass
 
-    def process_replication_rows(
+    async def process_replication_rows(
         self,
         stream_name: str,
         instance_name: str,
@@ -302,10 +302,10 @@ class TagsWorkerStore(AccountDataWorkerStore):
         if stream_name == TagAccountDataStream.NAME:
             self._account_data_id_gen.advance(instance_name, token)
             for row in rows:
-                self.get_tags_for_user.invalidate((row.user_id,))
+                await self.get_tags_for_user.invalidate((row.user_id,))
                 self._account_data_stream_cache.entity_has_changed(row.user_id, token)
 
-        super().process_replication_rows(stream_name, instance_name, token, rows)
+        await super().process_replication_rows(stream_name, instance_name, token, rows)
 
 
 class TagsStore(TagsWorkerStore):

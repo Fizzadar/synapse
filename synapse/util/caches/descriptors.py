@@ -28,6 +28,7 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
+    Sized,
     Tuple,
     Type,
     TypeVar,
@@ -37,13 +38,10 @@ from typing import (
 from weakref import WeakValueDictionary
 
 from twisted.internet import defer
-from twisted.python.failure import Failure
 
 from synapse.logging.context import make_deferred_yieldable, preserve_fn
-from synapse.util import unwrapFirstError
-from synapse.util.async_helpers import delay_cancellation
-from synapse.util.caches.deferred_cache import DeferredCache
-from synapse.util.caches.lrucache import LruCache
+from synapse.util.caches.lrucache import AsyncLruCache, LruCache
+from synapse.util.caches.treecache import TreeCache
 
 logger = logging.getLogger(__name__)
 
@@ -246,7 +244,7 @@ class LruCacheDescriptor(_CacheDescriptorBase):
         return wrapped
 
 
-class DeferredCacheDescriptor(_CacheDescriptorBase):
+class AsyncCacheDescriptor(_CacheDescriptorBase):
     """A method decorator that applies a memoizing cache around the function.
 
     This caches deferreds, rather than the results themselves. Deferreds that
@@ -320,11 +318,19 @@ class DeferredCacheDescriptor(_CacheDescriptorBase):
         self.prune_unread_entries = prune_unread_entries
 
     def __get__(self, obj: Optional[Any], owner: Optional[Type]) -> Callable[..., Any]:
-        cache: DeferredCache[CacheKey, Any] = DeferredCache(
-            name=self.orig.__name__,
-            max_entries=self.max_entries,
-            tree=self.tree,
-            iterable=self.iterable,
+        cache_type = TreeCache if self.tree else dict
+
+        cache: AsyncLruCache[CacheKey, Any] = AsyncLruCache(
+            max_size=self.max_entries,
+            cache_name=self.orig.__name__,
+            cache_type=cache_type,
+            size_callback=(
+                (lambda d: len(cast(Sized, d)) or 1)
+                # Argument 1 to "len" has incompatible type "VT"; expected "Sized"
+                # We trust that `VT` is `Sized` when `iterable` is `True`
+                if self.iterable
+                else None
+            ),
             prune_unread_entries=self.prune_unread_entries,
         )
 
@@ -332,15 +338,22 @@ class DeferredCacheDescriptor(_CacheDescriptorBase):
 
         @functools.wraps(self.orig)
         def _wrapped(*args: Any, **kwargs: Any) -> Any:
-            # If we're passed a cache_context then we'll want to call its invalidate()
-            # whenever we are invalidated
-            invalidate_callback = kwargs.pop("on_invalidate", None)
+            async def _deferred():
+                # If we're passed a cache_context then we'll want to call its invalidate()
+                # whenever we are invalidated
+                invalidate_callback = kwargs.pop("on_invalidate", None)
+                callbacks = [invalidate_callback] if invalidate_callback else []
 
-            cache_key = get_cache_key(args, kwargs)
+                cache_key = get_cache_key(args, kwargs)
 
-            try:
-                ret = cache.get(cache_key, callback=invalidate_callback)
-            except KeyError:
+                default = object()
+                cached_value = await cache.get(
+                    cache_key, callbacks=callbacks, default=default
+                )
+
+                if cached_value is not default:
+                    return cached_value
+
                 # Add our own `cache_context` to argument list if the wrapped function
                 # has asked for one
                 if self.add_cache_context:
@@ -348,15 +361,12 @@ class DeferredCacheDescriptor(_CacheDescriptorBase):
                         cache, cache_key
                     )
 
-                ret = defer.maybeDeferred(preserve_fn(self.orig), obj, *args, **kwargs)
-                ret = cache.set(cache_key, ret, callback=invalidate_callback)
+                value = await preserve_fn(self.orig)(obj, *args, **kwargs)
+                await cache.set(cache_key, value, callbacks=callbacks)
 
-                # We started a new call to `self.orig`, so we must always wait for it to
-                # complete. Otherwise we might mark our current logging context as
-                # finished while `self.orig` is still using it in the background.
-                ret = delay_cancellation(ret)
+                return value
 
-            return make_deferred_yieldable(ret)
+            return make_deferred_yieldable(defer.ensureDeferred(_deferred()))
 
         wrapped = cast(_CachedFunction, _wrapped)
 
@@ -377,7 +387,7 @@ class DeferredCacheDescriptor(_CacheDescriptorBase):
         return wrapped
 
 
-class DeferredCacheListDescriptor(_CacheDescriptorBase):
+class AsyncCacheListDescriptor(_CacheDescriptorBase):
     """Wraps an existing cache to support bulk fetching of keys.
 
     Given an iterable of keys it looks in the cache to find any hits, then passes
@@ -422,108 +432,69 @@ class DeferredCacheListDescriptor(_CacheDescriptorBase):
         self, obj: Optional[Any], objtype: Optional[Type] = None
     ) -> Callable[..., "defer.Deferred[Dict[Hashable, Any]]"]:
         cached_method = getattr(obj, self.cached_method_name)
-        cache: DeferredCache[CacheKey, Any] = cached_method.cache
+        cache: AsyncLruCache[CacheKey, Any] = cached_method.cache
         num_args = cached_method.num_args
 
         @functools.wraps(self.orig)
         def wrapped(*args: Any, **kwargs: Any) -> "defer.Deferred[Dict]":
-            # If we're passed a cache_context then we'll want to call its
-            # invalidate() whenever we are invalidated
-            invalidate_callback = kwargs.pop("on_invalidate", None)
+            async def _deferred():
+                # If we're passed a cache_context then we'll want to call its
+                # invalidate() whenever we are invalidated
+                invalidate_callback = kwargs.pop("on_invalidate", None)
+                callbacks = [invalidate_callback] if invalidate_callback else []
 
-            arg_dict = inspect.getcallargs(self.orig, obj, *args, **kwargs)
-            keyargs = [arg_dict[arg_nm] for arg_nm in self.arg_names]
-            list_args = arg_dict[self.list_name]
+                arg_dict = inspect.getcallargs(self.orig, obj, *args, **kwargs)
+                keyargs = [arg_dict[arg_nm] for arg_nm in self.arg_names]
+                list_args = arg_dict[self.list_name]
 
-            results = {}
+                results = {}
 
-            def update_results_dict(res: Any, arg: Hashable) -> None:
-                results[arg] = res
+                def update_results_dict(res: Any, arg: Hashable) -> None:
+                    results[arg] = res
 
-            # list of deferreds to wait for
-            cached_defers = []
+                missing = set()
 
-            missing = set()
+                # If the cache takes a single arg then that is used as the key,
+                # otherwise a tuple is used.
+                if num_args == 1:
 
-            # If the cache takes a single arg then that is used as the key,
-            # otherwise a tuple is used.
-            if num_args == 1:
+                    def arg_to_cache_key(arg: Hashable) -> Hashable:
+                        return arg
 
-                def arg_to_cache_key(arg: Hashable) -> Hashable:
-                    return arg
+                else:
+                    keylist = list(keyargs)
 
-            else:
-                keylist = list(keyargs)
+                    def arg_to_cache_key(arg: Hashable) -> Hashable:
+                        keylist[self.list_pos] = arg
+                        return tuple(keylist)
 
-                def arg_to_cache_key(arg: Hashable) -> Hashable:
-                    keylist[self.list_pos] = arg
-                    return tuple(keylist)
+                default = object()
 
-            for arg in list_args:
-                try:
-                    res = cache.get(arg_to_cache_key(arg), callback=invalidate_callback)
-                    if not res.called:
-                        res.addCallback(update_results_dict, arg)
-                        cached_defers.append(res)
-                    else:
-                        results[arg] = res.result
-                except KeyError:
-                    missing.add(arg)
-
-            if missing:
-                # we need a deferred for each entry in the list,
-                # which we put in the cache. Each deferred resolves with the
-                # relevant result for that key.
-                deferreds_map = {}
-                for arg in missing:
-                    deferred: "defer.Deferred[Any]" = defer.Deferred()
-                    deferreds_map[arg] = deferred
-                    key = arg_to_cache_key(arg)
-                    cached_defers.append(
-                        cache.set(key, deferred, callback=invalidate_callback)
+                for arg in list_args:
+                    res = await cache.get(
+                        arg_to_cache_key(arg), callbacks=callbacks, default=default
                     )
+                    if res is not default:
+                        results[arg] = res
+                    else:
+                        missing.add(arg)
 
-                def complete_all(res: Dict[Hashable, Any]) -> None:
-                    # the wrapped function has completed. It returns a dict.
-                    # We can now update our own result map, and then resolve the
-                    # observable deferreds in the cache.
-                    for e, d1 in deferreds_map.items():
-                        val = res.get(e, None)
-                        # make sure we update the results map before running the
-                        # deferreds, because as soon as we run the last deferred, the
-                        # gatherResults() below will complete and return the result
-                        # dict to our caller.
-                        results[e] = val
-                        d1.callback(val)
-
-                def errback_all(f: Failure) -> None:
-                    # the wrapped function has failed. Propagate the failure into
-                    # the cache, which will invalidate the entry, and cause the
-                    # relevant cached_deferreds to fail, which will propagate the
-                    # failure to our caller.
-                    for d1 in deferreds_map.values():
-                        d1.errback(f)
-
-                args_to_call = dict(arg_dict)
-                args_to_call[self.list_name] = missing
-
-                # dispatch the call, and attach the two handlers
-                defer.maybeDeferred(
-                    preserve_fn(self.orig), **args_to_call
-                ).addCallbacks(complete_all, errback_all)
-
-            if cached_defers:
-                d = defer.gatherResults(cached_defers, consumeErrors=True).addCallbacks(
-                    lambda _: results, unwrapFirstError
-                )
                 if missing:
-                    # We started a new call to `self.orig`, so we must always wait for it to
-                    # complete. Otherwise we might mark our current logging context as
-                    # finished while `self.orig` is still using it in the background.
-                    d = delay_cancellation(d)
-                return make_deferred_yieldable(d)
-            else:
-                return defer.succeed(results)
+                    args_to_call = dict(arg_dict)
+                    args_to_call[self.list_name] = missing
+
+                    missing_values = await preserve_fn(self.orig)(**args_to_call)
+
+                    for key in missing:
+                        value = missing_values.get(key)
+                        results[key] = value
+                        await cache.set(
+                            arg_to_cache_key(key), value, callbacks=callbacks
+                        )
+
+                return results
+
+            return make_deferred_yieldable(defer.ensureDeferred(_deferred()))
 
         obj.__dict__[self.orig.__name__] = wrapped
 
@@ -537,7 +508,7 @@ class _CacheContext:
     on a lower level.
     """
 
-    Cache = Union[DeferredCache, LruCache]
+    Cache = Union[AsyncLruCache, LruCache]
 
     _cache_context_objects: """WeakValueDictionary[
         Tuple["_CacheContext.Cache", CacheKey], "_CacheContext"
@@ -547,9 +518,9 @@ class _CacheContext:
         self._cache = cache
         self._cache_key = cache_key
 
-    def invalidate(self) -> None:
+    async def invalidate(self) -> None:
         """Invalidates the cache entry referred to by the context."""
-        self._cache.invalidate(self._cache_key)
+        await self._cache.invalidate(self._cache_key)
 
     @classmethod
     def get_instance(
@@ -578,7 +549,7 @@ def cached(
     iterable: bool = False,
     prune_unread_entries: bool = True,
 ) -> Callable[[F], _CachedFunction[F]]:
-    func = lambda orig: DeferredCacheDescriptor(
+    func = lambda orig: AsyncCacheDescriptor(
         orig,
         max_entries=max_entries,
         num_args=num_args,
@@ -595,7 +566,7 @@ def cached(
 def cachedList(
     *, cached_method_name: str, list_name: str, num_args: Optional[int] = None
 ) -> Callable[[F], _CachedFunction[F]]:
-    """Creates a descriptor that wraps a function in a `DeferredCacheListDescriptor`.
+    """Creates a descriptor that wraps a function in a `AsyncCacheListDescriptor`.
 
     Used to do batch lookups for an already created cache. One of the arguments
     is specified as a list that is iterated through to lookup keys in the
@@ -623,7 +594,7 @@ def cachedList(
             def batch_do_something(self, first_arg, second_args):
                 ...
     """
-    func = lambda orig: DeferredCacheListDescriptor(
+    func = lambda orig: AsyncCacheListDescriptor(
         orig,
         cached_method_name=cached_method_name,
         list_name=list_name,

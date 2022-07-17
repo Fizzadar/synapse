@@ -49,19 +49,21 @@ class SlavedDeviceStore(DeviceWorkerStore, BaseSlavedStore):
     def get_device_stream_token(self) -> int:
         return self._device_list_id_gen.get_current_token()
 
-    def process_replication_rows(
+    async def process_replication_rows(
         self, stream_name: str, instance_name: str, token: int, rows: Iterable[Any]
     ) -> None:
         if stream_name == DeviceListsStream.NAME:
             self._device_list_id_gen.advance(instance_name, token)
-            self._invalidate_caches_for_devices(token, rows)
+            await self._invalidate_caches_for_devices(token, rows)
         elif stream_name == UserSignatureStream.NAME:
             self._device_list_id_gen.advance(instance_name, token)
             for row in rows:
                 self._user_signature_stream_cache.entity_has_changed(row.user_id, token)
-        return super().process_replication_rows(stream_name, instance_name, token, rows)
+        return await super().process_replication_rows(
+            stream_name, instance_name, token, rows
+        )
 
-    def _invalidate_caches_for_devices(
+    async def _invalidate_caches_for_devices(
         self, token: int, rows: Iterable[DeviceListsStream.DeviceListsStreamRow]
     ) -> None:
         for row in rows:
@@ -70,9 +72,11 @@ class SlavedDeviceStore(DeviceWorkerStore, BaseSlavedStore):
             # changes.
             if row.entity.startswith("@"):
                 self._device_list_stream_cache.entity_has_changed(row.entity, token)
-                self.get_cached_devices_for_user.invalidate((row.entity,))
-                self._get_cached_user_device.invalidate((row.entity,))
-                self.get_device_list_last_stream_id_for_remote.invalidate((row.entity,))
+                await self.get_cached_devices_for_user.invalidate((row.entity,))
+                await self._get_cached_user_device.invalidate((row.entity,))
+                await self.get_device_list_last_stream_id_for_remote.invalidate(
+                    (row.entity,)
+                )
 
             else:
                 self._device_list_federation_stream_cache.entity_has_changed(
