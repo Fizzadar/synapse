@@ -485,11 +485,7 @@ class SyncHandler:
                 sync_config.filter_collection.blocks_all_room_timeline()
             )
 
-            if (
-                potential_recents is None
-                or newly_joined_room
-                or timeline_limit < len(potential_recents)
-            ):
+            if potential_recents is None or timeline_limit < len(potential_recents):
                 limited = True
             else:
                 limited = False
@@ -622,7 +618,7 @@ class SyncHandler:
         return TimelineBatch(
             events=recents,
             prev_batch=prev_batch_token,
-            limited=limited or newly_joined_room,
+            limited=limited,
             bundled_aggregations=bundled_aggregations,
         )
 
