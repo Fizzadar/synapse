@@ -104,6 +104,10 @@ class EventsBackgroundUpdatesStore(SQLBaseStore):
         super().__init__(database, db_conn, hs)
 
         self.db_pool.updates.register_background_update_handler(
+            _BackgroundUpdates.POPULATE_MEMBERSHIP_EVENT_STREAM_ORDERING,
+            self._populate_membership_event_stream_ordering,
+        )
+        self.db_pool.updates.register_background_update_handler(
             _BackgroundUpdates.EVENT_ORIGIN_SERVER_TS_NAME,
             self._background_reindex_origin_server_ts,
         )
