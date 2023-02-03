@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Set, Tuple, ca
 
 import attr
 
-from synapse.api.constants import EventContentFields, RelationTypes
+from synapse.api.constants import EventContentFields, EventTypes, RelationTypes
 from synapse.api.room_versions import KNOWN_ROOM_VERSIONS
 from synapse.events import make_event_from_dict
 from synapse.storage._base import SQLBaseStore, db_to_json, make_in_list_sql_clause
@@ -70,6 +70,10 @@ class _BackgroundUpdates:
     EVENTS_POPULATE_STATE_KEY_REJECTIONS = "events_populate_state_key_rejections"
 
     EVENTS_JUMP_TO_DATE_INDEX = "events_jump_to_date_index"
+
+    POPULATE_MEMBERSHIP_EVENT_STREAM_ORDERING = (
+        "populate_membership_event_stream_ordering"
+    )
 
 
 @attr.s(slots=True, frozen=True, auto_attribs=True)
@@ -1495,6 +1499,95 @@ class EventsBackgroundUpdatesStore(SQLBaseStore):
         if done:
             await self.db_pool.updates._end_background_update(
                 _BackgroundUpdates.EVENTS_POPULATE_STATE_KEY_REJECTIONS
+            )
+
+        return batch_size
+
+    async def _populate_membership_event_stream_ordering(
+        self, progress: JsonDict, batch_size: int
+    ) -> int:
+        def _populate_membership_event_stream_ordering(
+            txn: LoggingTransaction,
+        ) -> bool:
+
+            if "max_stream_ordering" in progress:
+                max_stream_ordering = progress["max_stream_ordering"]
+            else:
+                txn.execute("SELECT max(stream_ordering) FROM events")
+                res = txn.fetchone()
+                if res is None or res[0] is None:
+                    return True
+                else:
+                    max_stream_ordering = res[0]
+
+            start = progress.get("stream_ordering", 0)
+            stop = start + batch_size
+
+            sql = f"""
+                SELECT room_id, event_id, stream_ordering
+                FROM events
+                WHERE
+                    type = {EventTypes.Member}
+                    AND stream_ordering >= ?
+                    AND stream_ordering < ?
+            """
+            txn.execute(sql, (start, stop))
+
+            key_values: List[Tuple[str, str]] = []
+            value_values: List[Tuple[int]] = []
+
+            for room_id, event_id, event_stream_ordering in txn:
+                key_values.append((room_id, event_id))
+                value_values.append((event_stream_ordering,))
+
+            self.db_pool.simple_upsert_many_txn(
+                txn,
+                table="current_state_events",
+                key_names=("room_id", "event_id"),
+                key_values=key_values,
+                value_names=("event_stream_ordering",),
+                value_values=value_values,
+            )
+
+            self.db_pool.simple_upsert_many_txn(
+                txn,
+                table="room_memberships",
+                key_names=("room_id", "event_id"),
+                key_values=key_values,
+                value_names=("event_stream_ordering",),
+                value_values=value_values,
+            )
+
+            # NOTE: local_current_membership has no index on event_id, so only the
+            # room ID here will reduce the query rows read.
+            self.db_pool.simple_upsert_many_txn(
+                txn,
+                table="local_current_membership",
+                key_names=("room_id", "event_id"),
+                key_values=key_values,
+                value_names=("event_stream_ordering",),
+                value_values=value_values,
+            )
+
+            self.db_pool.updates._background_update_progress_txn(
+                txn,
+                _BackgroundUpdates.POPULATE_MEMBERSHIP_EVENT_STREAM_ORDERING,
+                {
+                    "stream_ordering": stop,
+                    "max_stream_ordering": max_stream_ordering,
+                },
+            )
+
+            return stop > max_stream_ordering
+
+        finished = await self.db_pool.runInteraction(
+            "_remove_devices_from_device_inbox_txn",
+            _populate_membership_event_stream_ordering,
+        )
+
+        if finished:
+            await self.db_pool.updates._end_background_update(
+                _BackgroundUpdates.POPULATE_MEMBERSHIP_EVENT_STREAM_ORDERING
             )
 
         return batch_size
