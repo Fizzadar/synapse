@@ -1155,7 +1155,7 @@ class PersistEventsStore:
                     )
                     """,
                     [
-                        (room_id, key[0], key[1], ev_id, ev_id)
+                        (room_id, key[0], key[1], ev_id, ev_id, ev_id)
                         for key, ev_id in to_insert.items()
                     ],
                 )
@@ -1190,7 +1190,7 @@ class PersistEventsStore:
                     )
                     """,
                     [
-                        (room_id, key[1], ev_id, ev_id)
+                        (room_id, key[1], ev_id, ev_id, ev_id)
                         for key, ev_id in to_insert.items()
                         if key[0] == EventTypes.Member and self.is_mine_id(key[1])
                     ],
