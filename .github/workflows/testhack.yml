@@ -6,8 +6,6 @@ on:
 
 jobs:
   portdb:
-    if: ${{ !failure() && !cancelled() }} # Allow previous steps to be skipped, but not fail
-    needs: linting-done
     runs-on: ubuntu-latest
     strategy:
       matrix:
