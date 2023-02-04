@@ -1564,14 +1564,14 @@ class EventsBackgroundUpdatesStore(SQLBaseStore):
 
             # NOTE: local_current_membership has no index on event_id, so only the
             # room ID here will reduce the query rows read.
-            self.db_pool.simple_upsert_many_txn(
-                txn,
-                table="local_current_membership",
-                key_names=("room_id", "event_id"),
-                key_values=key_values,
-                value_names=("event_stream_ordering",),
-                value_values=value_values,
-            )
+            # self.db_pool.simple_upsert_many_txn(
+            #     txn,
+            #     table="local_current_membership",
+            #     key_names=("room_id", "event_id"),
+            #     key_values=key_values,
+            #     value_names=("event_stream_ordering",),
+            #     value_values=value_values,
+            # )
 
             self.db_pool.updates._background_update_progress_txn(
                 txn,
@@ -1585,7 +1585,7 @@ class EventsBackgroundUpdatesStore(SQLBaseStore):
             return stop > max_stream_ordering
 
         finished = await self.db_pool.runInteraction(
-            "_remove_devices_from_device_inbox_txn",
+            "_populate_membership_event_stream_ordering",
             _populate_membership_event_stream_ordering,
         )
 
