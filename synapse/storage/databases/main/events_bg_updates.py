@@ -1546,7 +1546,7 @@ class EventsBackgroundUpdatesStore(SQLBaseStore):
                 event_ids.append((event_id,))
                 event_stream_orderings.append((event_stream_ordering,))
 
-            self.db_pool.simple_upsert_many_txn(
+            self.db_pool.simple_update_many_txn(
                 txn,
                 table="current_state_events",
                 key_names=("event_id",),
@@ -1555,7 +1555,7 @@ class EventsBackgroundUpdatesStore(SQLBaseStore):
                 value_values=event_stream_orderings,
             )
 
-            self.db_pool.simple_upsert_many_txn(
+            self.db_pool.simple_update_many_txn(
                 txn,
                 table="room_memberships",
                 key_names=("event_id",),
