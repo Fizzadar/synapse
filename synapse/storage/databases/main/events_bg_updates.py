@@ -1549,7 +1549,7 @@ class EventsBackgroundUpdatesStore(SQLBaseStore):
             self.db_pool.simple_upsert_many_txn(
                 txn,
                 table="current_state_events",
-                key_names=("event_id"),
+                key_names=("event_id",),
                 key_values=event_ids,
                 value_names=("event_stream_ordering",),
                 value_values=event_stream_orderings,
@@ -1558,7 +1558,7 @@ class EventsBackgroundUpdatesStore(SQLBaseStore):
             self.db_pool.simple_upsert_many_txn(
                 txn,
                 table="room_memberships",
-                key_names=("event_id"),
+                key_names=("event_id",),
                 key_values=event_ids,
                 value_names=("event_stream_ordering",),
                 value_values=event_stream_orderings,
