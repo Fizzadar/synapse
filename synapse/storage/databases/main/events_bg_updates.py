@@ -1537,41 +1537,44 @@ class EventsBackgroundUpdatesStore(SQLBaseStore):
             """
             txn.execute(sql, (start, stop))
 
-            key_values: List[Tuple[str, str]] = []
-            value_values: List[Tuple[int]] = []
+            rows: List[Tuple[str, str, int]] = list(txn)
 
-            for room_id, event_id, event_stream_ordering in txn:
-                key_values.append((room_id, event_id))
-                value_values.append((event_stream_ordering,))
+            event_ids: List[Tuple[str]] = []
+            event_stream_orderings: List[Tuple[int]] = []
+
+            for _, event_id, event_stream_ordering in rows:
+                event_ids.append((event_id,))
+                event_stream_orderings.append((event_stream_ordering,))
 
             self.db_pool.simple_upsert_many_txn(
                 txn,
                 table="current_state_events",
-                key_names=("room_id", "event_id"),
-                key_values=key_values,
+                key_names=("event_id"),
+                key_values=event_ids,
                 value_names=("event_stream_ordering",),
-                value_values=value_values,
+                value_values=event_stream_orderings,
             )
 
             self.db_pool.simple_upsert_many_txn(
                 txn,
                 table="room_memberships",
-                key_names=("room_id", "event_id"),
-                key_values=key_values,
+                key_names=("event_id"),
+                key_values=event_ids,
                 value_names=("event_stream_ordering",),
-                value_values=value_values,
+                value_values=event_stream_orderings,
             )
 
-            # NOTE: local_current_membership has no index on event_id, so only the
-            # room ID here will reduce the query rows read.
-            # self.db_pool.simple_upsert_many_txn(
-            #     txn,
-            #     table="local_current_membership",
-            #     key_names=("room_id", "event_id"),
-            #     key_values=key_values,
-            #     value_names=("event_stream_ordering",),
-            #     value_values=value_values,
-            # )
+            # NOTE: local_current_membership has no index on event_id, so only
+            # the room ID here will reduce the query rows read.
+            for room_id, event_id, event_stream_ordering in rows:
+                txn.execute(
+                    """
+                        UPDATE local_current_membership
+                        SET event_stream_ordering = ?
+                        WHERE room_id = ? AND event_id = ?
+                    """,
+                    (event_stream_ordering, room_id, event_id),
+                )
 
             self.db_pool.updates._background_update_progress_txn(
                 txn,
