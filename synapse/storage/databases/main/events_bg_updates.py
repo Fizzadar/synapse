@@ -1531,7 +1531,7 @@ class EventsBackgroundUpdatesStore(SQLBaseStore):
                 SELECT room_id, event_id, stream_ordering
                 FROM events
                 WHERE
-                    type = {EventTypes.Member}
+                    type = '{EventTypes.Member}'
                     AND stream_ordering >= ?
                     AND stream_ordering < ?
             """
